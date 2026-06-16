@@ -62,6 +62,7 @@ function buildTimeline(c: {
 }
 
 function toCard(file: string, column: Column): Card | null {
+  const mtime = fs.statSync(file).mtime.toISOString();
   const { frontmatter: fm } = parseFrontmatter(readHead(file));
   const id = fmString(fm.id) || path.basename(file).replace(/\.md$/, '');
   if (!id) return null;
@@ -71,7 +72,13 @@ function toCard(file: string, column: Column): Card | null {
   const agent = agentInfo(assignee, target);
 
   const createdTs = fmString(fm.created) || '';
-  const updatedTs = fmString(fm.updated) || fmString(fm.last_update_at) || createdTs;
+  // Priority: last_update_at > updated (only if differs from created) > file mtime for done/cancelled
+  const rawLastUpdate = fmString(fm.last_update_at);
+  const rawUpdated = fmString(fm.updated);
+  const updatedTs =
+    rawLastUpdate ||
+    (rawUpdated && rawUpdated !== createdTs ? rawUpdated : null) ||
+    (column === 'done' || column === 'cancelled' ? mtime : createdTs);
   const startedTs = firstTs(fmString(fm.started), fmString(fm.claimed_at));
   const active = column === 'in-progress';
 
