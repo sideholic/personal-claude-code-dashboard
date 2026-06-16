@@ -16,9 +16,10 @@ FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=4317
-# Mount the plugin's events.jsonl at this path (read-only):
-#   docker run -p 4317:4317 -v /abs/project/.claude-team/events.jsonl:/data/events.jsonl:ro claude-board
-ENV EVENTS_LOG=/data/events.jsonl
+# Mount the plugin's whole `.claude-team` dir read-only — the board reads the
+# ticket folder, not just events.jsonl:
+#   docker run -p 4317:4317 -v /abs/project/.claude-team:/data/.claude-team:ro claude-board
+ENV EVENTS_LOG=/data/.claude-team/events.jsonl
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
