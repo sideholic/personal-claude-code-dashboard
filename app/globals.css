@@ -397,3 +397,143 @@ html, body {
 @media (max-width: 560px) {
   .d-grid { grid-template-columns: 1fr; }
 }
+
+/* ── feature rollup ────────────────────────────────────────────── */
+.rollup {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+.rollup-h {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 0 0 10px;
+  font-weight: 600;
+}
+.rollup-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px 16px;
+}
+.rollup-item.standalone { opacity: 0.78; }
+.rollup-top { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+.rollup-name {
+  font-size: 12.5px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rollup-count {
+  margin-left: auto;
+  font-size: 11.5px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  color: var(--muted);
+  flex: none;
+}
+.rollup-bar {
+  height: 6px;
+  background: var(--panel-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.rollup-fill {
+  display: block;
+  height: 100%;
+  background: #3fb950;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+/* ── event feed ────────────────────────────────────────────────── */
+.feed {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+.feed-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 0 0 10px;
+  font-weight: 600;
+}
+.feed-dot { width: 7px; height: 7px; border-radius: 999px; }
+.feed-dot.on { background: #3fb950; }
+.feed-dot.off { background: var(--border); }
+.feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.feed-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11.5px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.feed-row.clickable { cursor: pointer; }
+.feed-row.clickable:hover { background: var(--panel-2); }
+.feed-time {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  color: var(--muted);
+  flex: none;
+  width: 62px;
+}
+.feed-event { color: var(--accent); font-weight: 600; }
+.feed-ticket {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  color: var(--text);
+}
+.feed-actor { color: var(--muted); margin-left: auto; }
+
+/* ── queue badges (priority + ready/blocked) ───────────────────── */
+.card-badges { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 8px; }
+.badge-pri, .badge-dep {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+.pri-high { color: #f85149; border-color: #5a2a2a; }
+.pri-low { color: var(--muted); }
+.dep-ready { color: #3fb950; border-color: #234; }
+.dep-blocked { color: #d29922; border-color: #5a4a1a; }
+
+/* ── in-progress progress note + staleness ─────────────────────── */
+.progress-note {
+  margin: 0 0 8px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--muted);
+  font-style: italic;
+}
+.card-stale { border-color: #8a6d1a; }
+.stale-warn {
+  margin: 0 0 8px;
+  font-size: 11px;
+  color: #d29922;
+  background: rgba(210, 153, 34, 0.1);
+  border-radius: 6px;
+  padding: 3px 7px;
+}
+.stale-unknown { margin: 0 0 8px; font-size: 11px; color: var(--muted); }
+
+.chip-rescue { color: #f85149; border-color: #5a2a2a; }
+.chip-review { color: #d29922; }

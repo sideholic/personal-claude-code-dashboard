@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { personaOf, type Card, type Column } from '@/lib/events';
+import { personaOf, type Card, type Column, type EventRec } from '@/lib/events';
 import { Markdown } from '@/lib/markdown';
 
 // Board reads the live ticket folder via /api/board (directory = status), polled
@@ -26,7 +26,14 @@ const COLUMN_DIR: Record<Column, string> = {
   cancelled: 'cancelled',
 };
 
-type BoardData = { cards: Card[]; totals: Record<string, number>; root: string };
+type FeatureRollup = { feature: string; total: number; done: number };
+type BoardData = {
+  cards: Card[];
+  totals: Record<string, number>;
+  root: string;
+  features: FeatureRollup[];
+  staleHours: number;
+};
 
 const ms = (ts?: string) => (ts ? new Date(ts).getTime() : NaN);
 
@@ -73,8 +80,17 @@ function elapsedMs(card: Card, now: number): number {
   return now - start;
 }
 
+/** Truncate a one-line note for compact card display. */
+const truncate = (s: string, n = 90) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
+
 export default function Board() {
-  const [board, setBoard] = useState<BoardData>({ cards: [], totals: {}, root: '' });
+  const [board, setBoard] = useState<BoardData>({
+    cards: [],
+    totals: {},
+    root: '',
+    features: [],
+    staleHours: 2,
+  });
   const [now, setNow] = useState(0);
   const [lastUpdated, setLastUpdated] = useState(0);
   const [state, setState] = useState<'idle' | 'loading' | 'error'>('loading');
@@ -88,7 +104,13 @@ export default function Board() {
     try {
       const res = await fetch('/api/board', { cache: 'no-store' });
       const data = (await res.json()) as BoardData;
-      setBoard({ cards: data.cards ?? [], totals: data.totals ?? {}, root: data.root ?? '' });
+      setBoard({
+        cards: data.cards ?? [],
+        totals: data.totals ?? {},
+        root: data.root ?? '',
+        features: data.features ?? [],
+        staleHours: data.staleHours ?? 2,
+      });
       setLastUpdated(Date.now());
       setState('idle');
     } catch {
@@ -155,6 +177,10 @@ export default function Board() {
         </span>
       </header>
 
+      <FeatureRollupBar features={board.features} />
+
+      <EventFeed onOpen={setSelectedId} />
+
       <div className="columns">
         {BOARD_COLUMNS.map((col) => {
           const items = byColumn.get(col) ?? [];
@@ -198,10 +224,12 @@ function TicketCard({
   const last = card.stages[card.stages.length - 1];
   const running = card.column === 'in-progress' || card.column === 'in-review';
   const finished = card.column === 'done' || card.column === 'cancelled';
+  const inProgress = card.column === 'in-progress';
+  const queued = card.column === 'queue';
 
   return (
     <article
-      className="card"
+      className={`card${card.stale ? ' card-stale' : ''}`}
       role="button"
       tabIndex={0}
       onClick={onOpen}
@@ -212,6 +240,34 @@ function TicketCard({
         <span className={`squad squad-${card.squad}`}>{card.squad}</span>
       </div>
       <p className="title">{card.title}</p>
+
+      {queued && (
+        <div className="card-badges">
+          {card.priority && card.priority !== 'medium' && (
+            <span className={`badge-pri pri-${card.priority}`}>{card.priority}</span>
+          )}
+          <span className={`badge-dep ${card.ready ? 'dep-ready' : 'dep-blocked'}`}>
+            {card.ready ? 'READY' : 'BLOCKED'}
+          </span>
+        </div>
+      )}
+
+      {inProgress && card.progressNote && (
+        <p className="progress-note" title={card.progressNote}>
+          {truncate(card.progressNote)}
+        </p>
+      )}
+
+      {inProgress && card.stale && (
+        <div className="stale-warn" title={`마지막 활동 ${fmtDateTime(card.lastActivityTs)}`}>
+          ⚠ 정체됨 (마지막 활동 {fmtDateTime(card.lastActivityTs)})
+        </div>
+      )}
+      {inProgress && card.stalenessUnknown && !card.stale && (
+        <div className="stale-unknown" title="last_activity_at 없음">
+          · 활동 시각 미상
+        </div>
+      )}
 
       {card.activeSkill && (
         <div className={`runline squad-${card.squad}`}>
@@ -228,6 +284,16 @@ function TicketCard({
 
       <div className="meta">
         {card.complexity && <span className="chip">{card.complexity}</span>}
+        {card.rescueCount != null && card.rescueCount > 0 && (
+          <span className="chip chip-rescue" title="rescue 횟수">
+            🛟 rescue ×{card.rescueCount}
+          </span>
+        )}
+        {card.reviewRounds != null && card.reviewRounds > 0 && (
+          <span className="chip chip-review" title="리뷰 라운드">
+            🔁 review ×{card.reviewRounds}
+          </span>
+        )}
         {last && !card.activeSkill && (
           <span className={`chip stage-${last.status}`}>
             {last.skill}:{last.stage} · {last.status}
@@ -250,6 +316,89 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
       <span className="d-label">{label}</span>
       <span className="d-value">{children}</span>
     </div>
+  );
+}
+
+/** Feature rollup: progress bar (done / total) per parent_feature. */
+function FeatureRollupBar({ features }: { features: FeatureRollup[] }) {
+  if (!features.length) return null;
+  return (
+    <section className="rollup">
+      <h2 className="rollup-h">Features</h2>
+      <div className="rollup-grid">
+        {features.map((f) => {
+          const pct = f.total ? Math.round((f.done / f.total) * 100) : 0;
+          const standalone = f.feature === 'standalone';
+          return (
+            <div key={f.feature} className={`rollup-item${standalone ? ' standalone' : ''}`}>
+              <div className="rollup-top">
+                <span className="rollup-name" title={f.feature}>
+                  {standalone ? '독립 티켓' : f.feature}
+                </span>
+                <span className="rollup-count">
+                  {f.done}/{f.total}
+                </span>
+              </div>
+              <div className="rollup-bar">
+                <span className="rollup-fill" style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+const FEED_CAP = 60; // keep only the most recent N events client-side
+
+/** Live event feed — consumes /api/events (SSE), newest first. */
+function EventFeed({ onOpen }: { onOpen: (id: string) => void }) {
+  const [events, setEvents] = useState<EventRec[]>([]);
+  const [connected, setConnected] = useState(false);
+
+  useEffect(() => {
+    const es = new EventSource('/api/events');
+    es.onopen = () => setConnected(true);
+    es.onerror = () => setConnected(false);
+    es.onmessage = (e) => {
+      let rec: EventRec | null = null;
+      try {
+        rec = JSON.parse(e.data) as EventRec;
+      } catch {
+        return; // ignore non-JSON (meta/ping)
+      }
+      if (!rec || !rec.event) return;
+      setEvents((prev) => [rec as EventRec, ...prev].slice(0, FEED_CAP));
+    };
+    return () => es.close();
+  }, []);
+
+  return (
+    <section className="feed">
+      <h2 className="feed-h">
+        Event Feed
+        <span className={`feed-dot ${connected ? 'on' : 'off'}`} />
+      </h2>
+      <div className="feed-list">
+        {events.length === 0 ? (
+          <p className="empty">이벤트 대기 중…</p>
+        ) : (
+          events.map((ev, i) => (
+            <div
+              key={`${ev.seq}-${ev.ts}-${i}`}
+              className={`feed-row${ev.ticket ? ' clickable' : ''}`}
+              onClick={ev.ticket ? () => onOpen(ev.ticket as string) : undefined}
+            >
+              <span className="feed-time">{fmtTime(ev.ts)}</span>
+              <span className="feed-event">{ev.event}</span>
+              {ev.ticket && <span className="feed-ticket">{ev.ticket}</span>}
+              {ev.actor && <span className="feed-actor">{ev.actor}</span>}
+            </div>
+          ))
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -348,7 +497,15 @@ function TicketDetail({
 
             <div className="d-grid">
               {card.feature && <Row label="Feature">{card.feature}</Row>}
+              {card.priority && <Row label="Priority">{card.priority}</Row>}
+              {card.progressNote && <Row label="Progress">{card.progressNote}</Row>}
               {card.complexity && <Row label="Complexity">{card.complexity}</Row>}
+              {card.rescueCount != null && card.rescueCount > 0 && (
+                <Row label="Rescue">🛟 ×{card.rescueCount}</Row>
+              )}
+              {card.reviewRounds != null && card.reviewRounds > 0 && (
+                <Row label="Review rounds">{card.reviewRounds}</Row>
+              )}
               {card.assignee && (
                 <Row label="Assignee">
                   {personaOf(card.assignee)} <span className="dim">({card.assignee})</span>

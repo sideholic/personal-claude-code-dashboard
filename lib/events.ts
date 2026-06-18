@@ -48,6 +48,22 @@ export type Card = {
   stages: Stage[];
   verdict?: string;
 
+  // agent-owned frontmatter
+  priority?: 'high' | 'medium' | 'low';
+  progressNote?: string;
+
+  // script-owned frontmatter
+  rescueCount?: number;
+  reviewRounds?: number;
+  /** last_activity_at (primary) / last_update_at (fallback) — drives staleness */
+  lastActivityTs?: string;
+
+  // derived (board route): queue dependency readiness + in-progress staleness
+  ready?: boolean;
+  stale?: boolean;
+  /** true when an in-progress card has no last_activity_at to judge staleness by */
+  stalenessUnknown?: boolean;
+
   // metadata harvested from the event payloads
   filesInScope?: string[];
   dependsOn?: string[];
